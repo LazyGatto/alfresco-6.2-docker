@@ -1,16 +1,21 @@
-# This docker-compose file will spin up an ACS cluster on a local host or on a server and it requires a minimum of 12GB Memory to distribute among containers.
-# Limit container memory and assign X percentage to JVM.  There are couple of ways to allocate JVM Memory for ACS Containers
-# For example: 'JAVA_OPTS: "$JAVA_OPTS -XX:+PrintFlagsFinal -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap"'
-# But, as per Oracle docs (https://docs.oracle.com/javase/9/gctuning/parallel-collector1.htm#JSGCT-GUID-CAB83393-3438-44ED-98F0-D15641B43C7D)
-# If container memory is not explicitly set, then the above flags will default max heap to 1/4th of container's memory which may not be ideal.
-# Hence, setting up explicit Container memory and then assigning a percentage of it to the JVM for performance tuning.
-
-# Using version 2 as 3 does not support resource constraint options (cpu_*, mem_* limits) for non swarm mode in Compose
 version: "2"
 
 services:
+    https:
+        build: ./https
+        ports:
+          - 443:443 #HTTPs
+        links:
+          - alfresco
+          - share
+          - solr6
+
+    onlyoffice:
+        image: onlyoffice/documentserver
+
     alfresco:
-        image: alfresco/alfresco-content-repository-community:6.1.2-ga
+        build: ./alfresco
+        #image: alfresco/alfresco-content-repository-community:6.1.2-ga
         environment:
             JAVA_OPTS : "
                 -Ddb.driver=org.postgresql.Driver
@@ -22,25 +27,33 @@ services:
                 -Dsolr.secureComms=none
                 -Dsolr.base.url=/solr
                 -Dindex.subsystem.name=solr6
-                -Dshare.host=localhost
-                -Dalfresco.port=8082
                 -Daos.baseUrlOverwrite=http://localhost:8082/alfresco/aos
                 -Dmessaging.broker.url=\"failover:(nio://activemq:61616)?timeout=3000&jms.useCompression=true\"
                 -Ddeployment.method=DOCKER_COMPOSE
                 -Dcsrf.filter.enabled=false
                 -Xms1g -Xmx1g
                 "
+        volumes:
+          - ./data/alf-repo-data:/usr/local/tomcat/alf_data
         ports:
-            - 8082:8080 #Browser port
+            - 443:443 #HTTPs
+            - 21:2121   #FTP port
+            - 25:2525   #SMTP port
+            - 143:1143  #IMAP port
+            - 445:1145      #CIFS
+            - 137:1137/udp  #CIFS
+            - 138:1138/udp  #CIFS
+            - 139:1139      #CIFS
 
     share:
-        image: alfresco/alfresco-share:6.1.0-RC3
+        build: ./share
+        #image: alfresco/alfresco-share:6.1.0-RC3
         environment:
             - REPO_HOST=alfresco
             - REPO_PORT=8080
             - "CATALINA_OPTS= -Xms500m -Xmx500m"
         ports:
-            - 8080:8080
+           - 8080:8080
 
     postgres:
         image: postgres:10.1
@@ -50,6 +63,8 @@ services:
             - POSTGRES_USER=alfresco
             - POSTGRES_DB=alfresco
         command: postgres -c max_connections=300 -c log_min_messages=LOG
+        volumes:
+           - ./data/postgres-data:/var/lib/postgresql/data
         ports:
             - 5432:5432
 
