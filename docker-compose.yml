@@ -36,7 +36,6 @@ services:
         volumes:
           - ./data/alf-repo-data:/usr/local/tomcat/alf_data
         ports:
-            - 443:443 #HTTPs
             - 21:2121   #FTP port
             - 25:2525   #SMTP port
             - 143:1143  #IMAP port
